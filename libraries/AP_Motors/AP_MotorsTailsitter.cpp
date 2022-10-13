@@ -171,7 +171,7 @@ void AP_MotorsTailsitter::output_armed_stabilizing()
         limit.roll = true;
     }
     //满足条件1：拨杆拨到最另一边则切换模式
-    if (switchbottom > 1750.0f )
+    if (switchbottom > 1700.0f )
     {
         //舵机偏向正前方
         _tilt_left  = - 0.75f;
@@ -181,8 +181,8 @@ void AP_MotorsTailsitter::output_armed_stabilizing()
         _thrust_rear = 0.0f;
 
         //两个前部电机按照原始油门和偏航遥控器信号进行活动，并进行限幅
-        _thrust_left  = (rawinputthrottle - 1097)* 0.0006 + (rawinputyaw - 1521)* 0.00048;
-        _thrust_right = (rawinputthrottle - 1097)* 0.0006 - (rawinputyaw - 1521)* 0.00048;
+        _thrust_left  = (rawinputthrottle - 1097.0f)* 0.0006f + (rawinputyaw - 1521.0f)* 0.00048f;
+        _thrust_right = (rawinputthrottle - 1097.0f)* 0.0006f - (rawinputyaw - 1521.0f)* 0.00048f;
         _thrust_left  = constrain_float(_thrust_left  , 0.0f, 1.0f);
         _thrust_right = constrain_float(_thrust_right , 0.0f, 1.0f);
 
