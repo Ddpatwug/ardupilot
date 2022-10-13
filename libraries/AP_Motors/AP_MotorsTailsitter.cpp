@@ -1,27 +1,10 @@
-/*
-   This program is free software: you can redistribute it and/or modify
-   it under the terms of the GNU General Public License as published by
-   the Free Software Foundation, either version 3 of the License, or
-   (at your option) any later version.
-
-   This program is distributed in the hope that it will be useful,
-   but WITHOUT ANY WARRANTY; without even the implied warranty of
-   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-   GNU General Public License for more details.
-
-   You should have received a copy of the GNU General Public License
-   along with this program.  If not, see <http://www.gnu.org/licenses/>.
- */
-
-/*
- *       AP_MotorsTailsitter.cpp - ArduCopter motors library for tailsitters and bicopters
- *
- */
+//小车式三旋翼Taxicopter，三个电机两个舵机，两种模式
 
 #include <AP_HAL/AP_HAL.h>
 #include <AP_Math/AP_Math.h>
 #include "AP_MotorsTailsitter.h"
 #include <GCS_MAVLink/GCS.h>
+#include <AP_InertialNav/AP_InertialNav.h>
 
 extern const AP_HAL::HAL& hal;
 
@@ -47,6 +30,9 @@ void AP_MotorsTailsitter::init(motor_frame_class frame_class, motor_frame_type f
     SRV_Channels::set_aux_channel_default(SRV_Channel::k_tiltMotorLeft, CH_4);
     SRV_Channels::set_angle(SRV_Channel::k_tiltMotorLeft, SERVO_OUTPUT_RANGE);
 
+    // 设置后部电机初始化
+    SRV_Channels::set_aux_channel_default(SRV_Channel::k_throttlerear, CH_5);
+
     _mav_type = MAV_TYPE_VTOL_DUOROTOR;
 
     // record successful initialisation if what we setup was the desired frame_class
@@ -70,6 +56,7 @@ void AP_MotorsTailsitter::set_update_rate(uint16_t speed_hz)
 
     SRV_Channels::set_rc_frequency(SRV_Channel::k_throttleLeft, speed_hz);
     SRV_Channels::set_rc_frequency(SRV_Channel::k_throttleRight, speed_hz);
+    SRV_Channels::set_rc_frequency(SRV_Channel::k_throttlerear, speed_hz);
 }
 
 void AP_MotorsTailsitter::output_to_motors()
@@ -83,12 +70,14 @@ void AP_MotorsTailsitter::output_to_motors()
             _actuator[0] = 0.0f;
             _actuator[1] = 0.0f;
             _actuator[2] = 0.0f;
+            _actuator[3] = 0.0f;
             _external_min_throttle = 0.0;
             break;
         case SpoolState::GROUND_IDLE:
             set_actuator_with_slew(_actuator[0], actuator_spin_up_to_ground_idle());
             set_actuator_with_slew(_actuator[1], actuator_spin_up_to_ground_idle());
             set_actuator_with_slew(_actuator[2], actuator_spin_up_to_ground_idle());
+            set_actuator_with_slew(_actuator[3], actuator_spin_up_to_ground_idle());
             _external_min_throttle = 0.0;
             break;
         case SpoolState::SPOOLING_UP:
@@ -97,11 +86,13 @@ void AP_MotorsTailsitter::output_to_motors()
             set_actuator_with_slew(_actuator[0], thrust_to_actuator(_thrust_left));
             set_actuator_with_slew(_actuator[1], thrust_to_actuator(_thrust_right));
             set_actuator_with_slew(_actuator[2], thrust_to_actuator(_throttle));
+            set_actuator_with_slew(_actuator[3], thrust_to_actuator(_thrust_rear));
             break;
     }
 
     SRV_Channels::set_output_pwm(SRV_Channel::k_throttleLeft, output_to_pwm(_actuator[0]));
     SRV_Channels::set_output_pwm(SRV_Channel::k_throttleRight, output_to_pwm(_actuator[1]));
+    SRV_Channels::set_output_pwm(SRV_Channel::k_throttlerear, output_to_pwm(_actuator[3]));
 
     // use set scaled to allow a different PWM range on plane forward throttle, throttle range is 0 to 100
     SRV_Channels::set_output_scaled(SRV_Channel::k_throttle, _actuator[2]*100);
@@ -123,6 +114,9 @@ uint16_t AP_MotorsTailsitter::get_motor_mask()
     if (SRV_Channels::find_channel(SRV_Channel::k_throttleRight, chan)) {
         motor_mask |= 1U << chan;
     }
+    if (SRV_Channels::find_channel(SRV_Channel::k_throttlerear, chan)) {
+        motor_mask |= 1U << chan;
+    }
 
     // add parent's mask
     motor_mask |= AP_MotorsMulticopter::get_motor_mask();
@@ -140,6 +134,15 @@ void AP_MotorsTailsitter::output_armed_stabilizing()
     float   thrust_max;                 // highest motor value
     float   thrust_min;                 // lowest motor value
     float   thr_adj = 0.0f;             // the difference between the pilot's desired throttle and throttle_thrust_best_rpy
+    //-------------------------------------------------
+    //获取遥控器三段拨杆的信号用于模式切换，获取飞行器垂直方向的速度用于模式切换的条件辅助
+    float switchbottom = RC_Channels::get_radio_in(CH_5);
+    float velocityZ = fabsf(inertial_nav.get_velocity_z_up_cms());
+    //-------------------------------------------------
+    //获取遥控器油门和偏航通道的信号用于控制小车模式的飞行器
+    float rawinputthrottle = RC_Channels::get_radio_in(CH_3);
+    float rawinputyaw = RC_Channels::get_radio_in(CH_4);
+    //-------------------------------------------------
 
     // apply voltage and air pressure compensation
     const float compensation_gain = get_compensation_gain();
@@ -168,10 +171,29 @@ void AP_MotorsTailsitter::output_armed_stabilizing()
         roll_thrust = 1;
         limit.roll = true;
     }
+    //满足条件1：拨杆拨到最另一边 条件2：垂直速度小于0.3m/s 则切换模式
+    if (switchbottom > 1750.0f && velocityZ < 30.0f)
+    {
+        //舵机偏向正前方
+        _tilt_left  = - 0.75f;
+        _tilt_right = - 0.75f;
 
-    // calculate left and right throttle outputs
-    _thrust_left  = throttle_thrust + roll_thrust * 0.5f;
-    _thrust_right = throttle_thrust - roll_thrust * 0.5f;
+        //停用尾部电机
+        _thrust_rear = 0.0f;
+
+        //两个前部电机按照原始油门和偏航遥控器信号进行活动，并进行限幅
+        _thrust_left  = (rawinputthrottle - 1097)* 0.0006 + (rawinputyaw - 1521)* 0.00048;
+        _thrust_right = (rawinputthrottle - 1097)* 0.0006 - (rawinputyaw - 1521)* 0.00048;
+        _thrust_left  = constrain_float(_thrust_left  , 0.0f, 1.0f);
+        _thrust_right = constrain_float(_thrust_right , 0.0f, 1.0f);
+
+    }
+    else
+    {
+        // calculate left and right throttle outputs
+    _thrust_left  = throttle_thrust + roll_thrust * 0.5f + pitch_thrust * 0.5f;
+    _thrust_right = throttle_thrust - roll_thrust * 0.5f + pitch_thrust * 0.5f;
+    _thrust_rear  = throttle_thrust                      - pitch_thrust * 0.5f;
 
     thrust_max = MAX(_thrust_right,_thrust_left);
     thrust_min = MIN(_thrust_right,_thrust_left);
@@ -197,6 +219,7 @@ void AP_MotorsTailsitter::output_armed_stabilizing()
     // Add adjustment to reduce average throttle
     _thrust_left  = constrain_float(_thrust_left  + thr_adj, 0.0f, 1.0f);
     _thrust_right = constrain_float(_thrust_right + thr_adj, 0.0f, 1.0f);
+    _thrust_rear  = constrain_float(_thrust_rear           , 0.0f, 1.0f);
 
     _throttle = throttle_thrust;
 
@@ -209,8 +232,9 @@ void AP_MotorsTailsitter::output_armed_stabilizing()
     }
 
     // thrust vectoring
-    _tilt_left  = pitch_thrust - yaw_thrust;
-    _tilt_right = pitch_thrust + yaw_thrust;
+    _tilt_left  = - yaw_thrust;
+    _tilt_right = + yaw_thrust;
+    }
 }
 
 // output_test_seq - spin a motor at the pwm value specified
@@ -235,6 +259,9 @@ void AP_MotorsTailsitter::_output_test_seq(uint8_t motor_seq, int16_t pwm)
         case 4:
             // left tilt servo
             SRV_Channels::set_output_pwm(SRV_Channel::k_tiltMotorLeft, pwm);
+            break;
+        case 5:
+            SRV_Channels::set_output_pwm(SRV_Channel::k_throttlerear, pwm);
             break;
         default:
             // do nothing
