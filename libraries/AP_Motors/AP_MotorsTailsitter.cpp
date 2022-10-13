@@ -137,7 +137,7 @@ void AP_MotorsTailsitter::output_armed_stabilizing()
     //-------------------------------------------------
     //获取遥控器三段拨杆的信号用于模式切换，获取飞行器垂直方向的速度用于模式切换的条件辅助
     float switchbottom = RC_Channels::get_radio_in(CH_5);
-    float velocityZ = fabsf(inertial_nav.get_velocity_z_up_cms());
+    float velocityZ = fabsf(_inav.get_velocity_z_up_cms());
     //-------------------------------------------------
     //获取遥控器油门和偏航通道的信号用于控制小车模式的飞行器
     float rawinputthrottle = RC_Channels::get_radio_in(CH_3);
