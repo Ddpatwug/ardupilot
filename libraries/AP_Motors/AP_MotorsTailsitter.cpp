@@ -4,7 +4,6 @@
 #include <AP_Math/AP_Math.h>
 #include "AP_MotorsTailsitter.h"
 #include <GCS_MAVLink/GCS.h>
-#include <AP_InertialNav/AP_InertialNav.h>
 
 extern const AP_HAL::HAL& hal;
 
@@ -135,9 +134,9 @@ void AP_MotorsTailsitter::output_armed_stabilizing()
     float   thrust_min;                 // lowest motor value
     float   thr_adj = 0.0f;             // the difference between the pilot's desired throttle and throttle_thrust_best_rpy
     //-------------------------------------------------
-    //获取遥控器三段拨杆的信号用于模式切换，获取飞行器垂直方向的速度用于模式切换的条件辅助
+    //获取遥控器三段拨杆的信号用于模式切换，获取你妈获取获取飞行器垂直方向的速度用于模式切换的条件辅助
     float switchbottom = RC_Channels::get_radio_in(CH_5);
-    float velocityZ = fabsf(_inav.get_velocity_z_up_cms());
+
     //-------------------------------------------------
     //获取遥控器油门和偏航通道的信号用于控制小车模式的飞行器
     float rawinputthrottle = RC_Channels::get_radio_in(CH_3);
@@ -171,8 +170,8 @@ void AP_MotorsTailsitter::output_armed_stabilizing()
         roll_thrust = 1;
         limit.roll = true;
     }
-    //满足条件1：拨杆拨到最另一边 条件2：垂直速度小于0.3m/s 则切换模式
-    if (switchbottom > 1750.0f && velocityZ < 30.0f)
+    //满足条件1：拨杆拨到最另一边则切换模式
+    if (switchbottom > 1750.0f )
     {
         //舵机偏向正前方
         _tilt_left  = - 0.75f;

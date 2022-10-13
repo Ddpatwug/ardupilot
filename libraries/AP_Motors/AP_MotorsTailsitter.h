@@ -33,8 +33,6 @@ public:
     // Set by tailsitters using diskloading minumum outflow velocity limit
     void set_min_throttle(float val) {_external_min_throttle = val;}
 
-    const AP_InertialNav&   _inav;
-
 protected:
     // calculate motor outputs
     void output_armed_stabilizing() override;
