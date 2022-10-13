@@ -174,15 +174,15 @@ void AP_MotorsTailsitter::output_armed_stabilizing()
     if (switchbottom > 1700.0f )
     {
         //舵机偏向正前方
-        _tilt_left  = - 0.75f;
-        _tilt_right = - 0.75f;
+        _tilt_left  = - 1f;
+        _tilt_right = - 1f;
 
         //停用尾部电机
         _thrust_rear = 0.0f;
 
         //两个前部电机按照原始油门和偏航遥控器信号进行活动，并进行限幅
-        _thrust_left  = (rawinputthrottle - 1097.0f)* 0.0006f + (rawinputyaw - 1521.0f)* 0.00048f;
-        _thrust_right = (rawinputthrottle - 1097.0f)* 0.0006f - (rawinputyaw - 1521.0f)* 0.00048f;
+        _thrust_left  = (rawinputthrottle - 1097.0f)* 0.0003f + (rawinputyaw - 1521.0f)* 0.0003f;
+        _thrust_right = (rawinputthrottle - 1097.0f)* 0.0003f - (rawinputyaw - 1521.0f)* 0.0003f;
         _thrust_left  = constrain_float(_thrust_left  , 0.0f, 1.0f);
         _thrust_right = constrain_float(_thrust_right , 0.0f, 1.0f);
 
