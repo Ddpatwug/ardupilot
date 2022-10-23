@@ -174,8 +174,8 @@ void AP_MotorsTailsitter::output_armed_stabilizing()
     if (switchbottom > 1700.0f )
     {
         //舵机偏向正前方
-        _tilt_left  = - 1f;
-        _tilt_right = - 1f;
+        _tilt_left  = - 1.0f;
+        _tilt_right = - 1.0f;
 
         //停用尾部电机
         _thrust_rear = 0.0f;
