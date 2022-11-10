@@ -22,6 +22,7 @@
 #include <AP_Math/AP_Math.h>
 #include "AP_MotorsTailsitter.h"
 #include <GCS_MAVLink/GCS.h>
+#include "RC_Channels.h"
 
 extern const AP_HAL::HAL& hal;
 
@@ -140,6 +141,11 @@ void AP_MotorsTailsitter::output_armed_stabilizing()
     float   thrust_max;                 // highest motor value
     float   thrust_min;                 // lowest motor value
     float   thr_adj = 0.0f;             // the difference between the pilot's desired throttle and throttle_thrust_best_rpy
+    float   Newthrust = 0.0f;           //定义新的油门，0.0 -1.0
+
+    float ReceiveChan3 = RC_Channels::get_radio_in(CH_3);         //获得油门通道以绕过油门曲线
+
+    Newthrust = (ReceiveChan3-1095)/840;
 
     // apply voltage and air pressure compensation
     const float compensation_gain = get_compensation_gain();
@@ -170,8 +176,8 @@ void AP_MotorsTailsitter::output_armed_stabilizing()
     }
 
     // calculate left and right throttle outputs
-    _thrust_left  = throttle_thrust + roll_thrust * 0.5f;
-    _thrust_right = throttle_thrust - roll_thrust * 0.5f;
+    _thrust_left  = Newthrust + roll_thrust * 0.5f;
+    _thrust_right = Newthrust - roll_thrust * 0.5f;
 
     thrust_max = MAX(_thrust_right,_thrust_left);
     thrust_min = MIN(_thrust_right,_thrust_left);
@@ -198,7 +204,7 @@ void AP_MotorsTailsitter::output_armed_stabilizing()
     _thrust_left  = constrain_float(_thrust_left  + thr_adj, 0.0f, 1.0f);
     _thrust_right = constrain_float(_thrust_right + thr_adj, 0.0f, 1.0f);
 
-    _throttle = throttle_thrust;
+    _throttle = Newthrust;
 
     // compensation_gain can never be zero
     // ensure accurate representation of average throttle output, this value is used for notch tracking and control surface scaling
